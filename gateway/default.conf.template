@@ -28,6 +28,10 @@ upstream backend {
   server backend:8080 max_fails=0;
 }
 
+upstream emr-ai {
+  server emr-ai:8000 max_fails=0;
+}
+
 server {
   listen       80;
 
@@ -75,6 +79,31 @@ server {
 
   # all redirects are relative to the gateway
   absolute_redirect off;
+
+  # EMR AI service — audio uploads up to 25MB (Whisper limit)
+  client_max_body_size 25m;
+
+  # Static JS bundle — no auth needed, cookie path doesn't matter
+  location /emr-ai/static/ {
+    proxy_pass http://emr-ai/static/;
+    proxy_read_timeout 30s;
+  }
+
+  # AI API under /openmrs/ so JSESSIONID (Path=/openmrs) is sent by the browser
+  location /openmrs/emr-ai/ {
+    proxy_pass http://emr-ai/api/;
+    proxy_set_header Cookie $http_cookie;
+    proxy_read_timeout 120s;
+    proxy_send_timeout 120s;
+  }
+
+  # Legacy /emr-ai/ passthrough (keeps old routes working)
+  location /emr-ai/ {
+    proxy_pass http://emr-ai/;
+    proxy_set_header Cookie $http_cookie;
+    proxy_read_timeout 120s;
+    proxy_send_timeout 120s;
+  }
 
   location = /openmrs/spa {
     return 301 /openmrs/spa/;

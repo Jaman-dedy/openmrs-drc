@@ -2,7 +2,7 @@
 #--------------------------------------------
 # Dev Stage - Assembles and Builds Frontend
 #--------------------------------------------
-FROM --platform=$BUILDPLATFORM node:18-alpine as dev
+FROM --platform=$BUILDPLATFORM node:20-alpine as dev
 
 ARG APP_SHELL_VERSION=next
 
@@ -16,6 +16,32 @@ ARG CACHE_BUST
 RUN npx --legacy-peer-deps openmrs@${APP_SHELL_VERSION:-next} assemble --manifest --mode config --config spa-assemble-config.json --target ./spa
 RUN npx --legacy-peer-deps openmrs@${APP_SHELL_VERSION:-next} build --build-config spa-build-config.json --target ./spa
 RUN if [ ! -f ./spa/index.html ]; then echo 'Build failed. Please check the logs above for details. This may have happened because of an update to a library that OpenMRS depends on.'; exit 1; fi
+
+# Inject the Ambient Scribe module into importmap.json and routes.registry.json
+# importmap tells the browser where to find the JS; routes.registry triggers initialization
+RUN node -e "\
+  const fs = require('fs');\
+  \
+  const imp = JSON.parse(fs.readFileSync('./spa/importmap.json', 'utf8'));\
+  imp.imports['@path-drc/esm-ambient-scribe-app'] = '/emr-ai/static/main.js';\
+  fs.writeFileSync('./spa/importmap.json', JSON.stringify(imp, null, 2));\
+  \
+  const reg = JSON.parse(fs.readFileSync('./spa/routes.registry.json', 'utf8'));\
+  reg['@path-drc/esm-ambient-scribe-app'] = {\
+    '\$schema': 'https://json.openmrs.org/routes.schema.json',\
+    'version': '1.0.0',\
+    'extensions': [{\
+      'name': 'ambient-scribe-button',\
+      'slot': 'patient-actions-slot',\
+      'component': 'ambientScribeButton',\
+      'online': true,\
+      'offline': false\
+    }]\
+  };\
+  fs.writeFileSync('./spa/routes.registry.json', JSON.stringify(reg, null, 2));\
+  \
+  console.log('Injected @path-drc/esm-ambient-scribe-app into importmap and routes.registry.');\
+"
 
 #--------------------------------------------
 # Runtime Stage - Published Image

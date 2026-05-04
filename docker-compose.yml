@@ -7,6 +7,7 @@ services:
     depends_on:
       - frontend
       - backend
+      - emr-ai
     ports:
       - "80:80"
 
@@ -60,6 +61,18 @@ services:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-openmrs}
     volumes:
       - db-data:/var/lib/mysql
+
+  # AI Service — Ambient Scribe + CDS
+  emr-ai:
+    build:
+      context: .
+      dockerfile: emr-ai/Dockerfile
+    restart: "unless-stopped"
+    depends_on:
+      - backend
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENMRS_URL: http://backend:8080
 
 volumes:
   openmrs-data: ~

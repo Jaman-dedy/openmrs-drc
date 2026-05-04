@@ -1,11 +1,16 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # PATH DRC — OpenMRS + EMR AI
 # Usage: make <target>
+#
+# COMPOSE      — main file only (pre-built images for backend/frontend/db)
+# COMPOSE_AI   — main + override for gateway & emr-ai only (custom builds)
+# COMPOSE_FULL — main + override for everything (core OpenMRS developers only)
 # ─────────────────────────────────────────────────────────────────────────────
 
-COMPOSE        := docker compose
-COMPOSE_OVERRIDE := docker compose -f docker-compose.yml -f docker-compose.override.yml
-SERVICE        ?= emr-ai
+COMPOSE      := docker compose -f docker-compose.yml
+COMPOSE_AI   := docker compose -f docker-compose.yml -f docker-compose.override.yml
+COMPOSE_FULL := docker compose -f docker-compose.yml -f docker-compose.override.yml
+SERVICE      ?= emr-ai
 
 .DEFAULT_GOAL := help
 
@@ -17,15 +22,15 @@ help:
 	@echo "  PATH DRC — EMR + AI Service"
 	@echo ""
 	@echo "  Start & stop"
-	@echo "    make dev          Build all images and start every container (first run / after code changes)"
-	@echo "    make up           Start all containers without rebuilding (fast)"
+	@echo "    make dev          Start full stack — pre-built OpenMRS images + build gateway & emr-ai  ← use this"
+	@echo "    make up           Start all containers using existing images only (no build)"
 	@echo "    make down         Stop and remove all containers"
 	@echo "    make restart      Restart all containers"
 	@echo ""
 	@echo "  Rebuild individual service"
-	@echo "    make rebuild      Rebuild + restart one service  (SERVICE=emr-ai|gateway|frontend|backend)"
-	@echo "    make rebuild-ai   Shortcut — rebuild emr-ai only"
-	@echo "    make rebuild-gw   Shortcut — rebuild gateway only (nginx config changes)"
+	@echo "    make rebuild-ai   Rebuild emr-ai only (after AI backend changes)"
+	@echo "    make rebuild-gw   Rebuild gateway only (after nginx config changes)"
+	@echo "    make rebuild      Rebuild any service  (SERVICE=emr-ai|gateway)"
 	@echo ""
 	@echo "  Observability"
 	@echo "    make status       Show running containers and ports"
@@ -42,7 +47,10 @@ help:
 
 .PHONY: dev
 dev:
-	$(COMPOSE_OVERRIDE) up --build -d
+	@echo "  Starting db, backend, frontend with pre-built images..."
+	$(COMPOSE) up -d db backend frontend
+	@echo "  Building and starting gateway (custom nginx) and emr-ai..."
+	$(COMPOSE_AI) up --build --no-deps -d gateway emr-ai
 	@echo ""
 	@echo "  All containers started."
 	@echo "  OpenMRS → http://localhost/openmrs/spa"
@@ -68,15 +76,15 @@ restart:
 
 .PHONY: rebuild
 rebuild:
-	$(COMPOSE_OVERRIDE) up --build --no-deps -d $(SERVICE)
+	$(COMPOSE_AI) up --build --no-deps -d $(SERVICE)
 
 .PHONY: rebuild-ai
 rebuild-ai:
-	$(COMPOSE_OVERRIDE) up --build --no-deps -d emr-ai
+	$(COMPOSE_AI) up --build --no-deps -d emr-ai
 
 .PHONY: rebuild-gw
 rebuild-gw:
-	$(COMPOSE_OVERRIDE) up --build --no-deps -d gateway
+	$(COMPOSE_AI) up --build --no-deps -d gateway
 
 # ── Observability ─────────────────────────────────────────────────────────────
 
